@@ -1,0 +1,147 @@
+---
+######## Play to Build Docker Image & to Push it to DockerHub ######## 
+- name: "Installing Docker and Building an Image Git Cloned Docker File"
+  hosts: docker-builder
+  become: true
+  vars_files:
+    - credential.vars
+  vars:
+    git_url: https://github.com/AneeshkbAwait/devops-flask.git
+    git_clone_dir: /home/ec2-user/docker_cloned_images
+    packages:
+      - git
+      - docker
+      - python-pip
+  tasks:
+
+
+    - name: "Installing docker & Git packages"
+      yum:
+        name: "{{ packages }}"
+        state: present
+
+    - name: "Installing docker-py python module"
+      pip:
+        name: docker-py
+
+    - name: "Adding Ec2-user to the docker group"
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    - name: "Starting and enabling Services"
+      service:
+        name: docker
+        state: restarted
+        enabled: true
+
+    - name: "Cloning Dockerfile from Git respository"
+      git:
+        repo: "{{ git_url }}"
+        dest: "{{ git_clone_dir }}"
+      register: clone_status
+
+    - name: "Build the image from the git cloned Dockerfile"
+      when: clone_status.changed == true
+      docker_image:
+        build:
+          nocache: yes
+          rm: yes
+          path: "{{ git_clone_dir }}"
+        name: "{{ dock_user }}"/ansible-flaskapp
+        tag: "{{ clone_status.after }}"
+        source: build
+      register: docker_build
+
+    - name: 'Retag Current Built Image as Latest'
+      when: docker_build.changed == true
+      shell: docker image tag "{{ dock_user }}"/ansible-flaskapp:"{{ clone_status.after }}" "{{ dock_user }}"/ansible-flaskapp:latest
+
+    - name: "Log into DockerHub"
+      when: clone_status.changed == true
+      docker_login:
+        username: "{{ dock_user }}"
+        password: "{{ dock_pwd }}"
+        state: present
+      register: login_status
+
+    - name: "Pushing the Image to Docker Hub"
+      when: clone_status.changed == true and login_status.changed == true
+      docker_image:
+        name: "{{ dock_user }}/ansible-flaskapp:{{ item }}"
+        push: yes
+        force_tag: yes
+        source: local
+      with_items:
+        - latest
+        - "{{ clone_status.after }}"
+      register: push_status
+
+    - name: "Log out from  DockerHub"
+      docker_login:
+        state: absent
+
+    - name: "Removing the Local Images once the Push is Success!!"
+      when: docker_build.changed == true and push_status.changed == true
+      docker_image:
+        name: "{{ dock_user }}/ansible-flaskapp:{{ item }}"
+        state: absent
+      with_items:
+        - "{{ clone_status.after }}"
+        - latest
+
+######## Play to Deploying the Docker Image in app-server ######## 
+
+
+- name: "Installing Docker and Creating Container from ansible-flaskapp Image"
+  hosts: app-server
+  become: true
+  vars:
+    packages:
+      - docker
+      - python-pip
+  tasks:
+
+
+    - name: "Installing docker and python-pip packages"
+      yum:
+        name: "{{ packages }}"
+        state: present
+      register: instal_status
+
+    - name: "Installing docker-py python module"
+      pip:
+        name: docker-py
+
+    - name: "Adding Ec2-user to the docker group"
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    - name: "Starting and enabling Services"
+      when: instal_status.changed == true
+      service:
+        name: docker
+        state: restarted
+        enabled: true
+
+    - name: "Pulling the Docker Image from Docker Hub"
+      docker_image:
+        name: aneeshkbawaits/ansible-flaskapp:latest
+        source: pull
+        force_source: yes
+        state: present
+      register: pull_status
+
+    - name: "Creating docker container"
+      when: pull_status.changed == true
+      docker_container:
+        name: flaskapp
+        image: aneeshkbawaits/ansible-flaskapp:latest
+        state: started
+        restart_policy: always
+        recreate: yes
+        published_ports: 80:5000
+        detach: yes
