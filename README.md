@@ -11,7 +11,7 @@ The entire workflow is as follows:
 
 4. Jenkins is used in this case because we want to automate the build and deploy process in response to an application change or version update. This means, whenever the development team implements any code change/maintenance or application version update, a new Docker image will be constructed by taking the changes applied and it will be pushed to the Dockerhub. So, whenever a new Docker image is pushed to the Dockerhub, the Docker container will be recreated with the new Docker image so as to run the latest application code. The Jenkins GitHub Webhook is used to trigger the action whenever developers commit something into the repository.
 
-Ansible Inventory:
+### Ansible Inventory:
 Docker image is built and pushed to dockerhub using the host 'docker-builder'.
 Application container is created using these images on host 'app-server'
 ```
@@ -22,14 +22,15 @@ Application container is created using these images on host 'app-server'
 172.31.37.69 ansible_user="ec2-user" ansible_port=22 ansible_ssh_private_key_file="key.pem"
 ```
 
-credential.vars contains login credential to Dockerhub.
+### credential.vars
+credential.vars is a variable file which contains login credential to Dockerhub.
 ```
 ---
 dock_user: "testacct"
 dock_pwd: "***********"
 ```
 
-Playbook for build and deploying docker image:
+### Playbook for build and deploying docker image:
 ```
 ---
 ######## Play to Build Docker Image & to Push it to DockerHub ######## 
@@ -186,7 +187,7 @@ The First play will build docker images based on the application dockerfile avai
 
 The Second play will always fetch the latest docker Image of the application and will recreate the application containers whenever a new docker image is pushed to the DockerHub.
 
-Jenkins:
+### Jenkins:
 
 The Ansible Playbook is executed through a jenkins job which created for the purpose.
 
