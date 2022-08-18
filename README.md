@@ -23,6 +23,11 @@ Application container is created using these images on host 'app-server'
 ```
 
 credential.vars contains login credential to Dockerhub.
+```
+---
+dock_user: "testacct"
+dock_pwd: "***********"
+```
 
 Playbook for build and deploying docker image:
 ```
